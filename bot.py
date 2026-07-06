@@ -9,7 +9,7 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -22,10 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize translator
-translator = Translator()
-
-# Complete language dictionary
+# Language dictionary
 LANGUAGES = {
     'af': 'Afrikaans', 'sq': 'Albanian', 'am': 'Amharic', 'ar': 'Arabic',
     'hy': 'Armenian', 'az': 'Azerbaijani', 'eu': 'Basque', 'be': 'Belarusian',
@@ -59,13 +56,16 @@ LANGUAGES = {
 
 DEFAULT_TARGET = 'en'
 
-# Get bot token
+# Get bot token from environment
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 if not BOT_TOKEN:
+    logger.error("TELEGRAM_BOT_TOKEN not found in environment variables!")
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required!")
 
+# Initialize translator
+translator = GoogleTranslator()
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     user = update.effective_user
     welcome_msg = (
@@ -84,8 +84,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     await update.message.reply_text(welcome_msg, parse_mode='Markdown')
 
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command."""
     help_msg = (
         "📚 **Available Commands:**\n\n"
@@ -107,8 +106,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
     await update.message.reply_text(help_msg, parse_mode='Markdown')
 
-
-async def languages_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def languages_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /languages command."""
     lang_list = [f"• `{code}` → {name}" for code, name in sorted(LANGUAGES.items())]
     
@@ -126,8 +124,7 @@ async def languages_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             parse_mode='Markdown'
         )
 
-
-async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /about command."""
     about_msg = (
         "🤖 **Language Translator Bot**\n"
@@ -141,16 +138,13 @@ async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "🛠️ **Technology:**\n"
         "• Python 3.11+\n"
         "• python-telegram-bot\n"
-        "• Google Translate API\n"
+        "• Deep Translator\n"
         "• Deployed on Railway\n\n"
-        "📦 **Version:** 2.0.0\n"
-        "👨‍💻 **Developer:** @YourUsername\n"
-        "🐙 **Source:** [GitHub](https://github.com/yourusername/telegram-translator-bot)"
+        "📦 **Version:** 2.0.0"
     )
-    await update.message.reply_text(about_msg, parse_mode='Markdown', disable_web_page_preview=True)
+    await update.message.reply_text(about_msg, parse_mode='Markdown')
 
-
-async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /translate command."""
     try:
         if not context.args or len(context.args) < 2:
@@ -177,35 +171,25 @@ async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         
     except Exception as e:
         logger.error(f"Translate command error: {e}")
-        await update.message.reply_text(
-            "❌ An error occurred. Please try again later."
-        )
+        await update.message.reply_text("❌ An error occurred. Please try again later.")
 
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular text messages."""
     text = update.message.text
     await perform_translation(update.message, text, DEFAULT_TARGET)
 
-
-async def perform_translation(message, text: str, target_lang: str) -> None:
+async def perform_translation(message, text: str, target_lang: str):
     """Core translation function."""
     try:
         await message.chat.send_action(action="typing")
         
-        # Detect source language
-        detection = translator.detect(text)
-        source_lang = detection.lang
-        source_lang_name = LANGUAGES.get(source_lang, source_lang.upper())
         target_lang_name = LANGUAGES.get(target_lang, target_lang.upper())
         
-        # Perform translation
-        translation = translator.translate(text, dest=target_lang)
-        translated_text = translation.text
+        # Translate using deep-translator
+        translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text)
         
-        # Prepare response
         response = (
-            f"🔍 **Detected:** {source_lang_name}\n"
+            f"🔍 **Source:** Auto-detected\n"
             f"🎯 **Target:** {target_lang_name}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📝 **Translation:**\n"
@@ -220,11 +204,10 @@ async def perform_translation(message, text: str, target_lang: str) -> None:
     except Exception as e:
         logger.error(f"Translation error: {e}")
         await message.reply_text(
-            "❌ Sorry, I couldn't translate that text. Please try again with shorter text."
+            "❌ Sorry, I couldn't translate that text. Please try again."
         )
 
-
-async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle inline queries."""
     query = update.inline_query.query.strip()
     
@@ -255,18 +238,13 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         text = parts[1]
     
     try:
-        # Detect source language
-        detection = translator.detect(text)
-        source_lang = detection.lang
-        source_lang_name = LANGUAGES.get(source_lang, source_lang.upper())
         target_lang_name = LANGUAGES.get(target_lang, target_lang.upper())
         
-        # Translate
-        translation = translator.translate(text, dest=target_lang)
-        translated_text = translation.text
+        translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text)
         
         result_text = (
-            f"🔍 {source_lang_name} → {target_lang_name}\n"
+            f"🔍 **Source:** Auto-detected\n"
+            f"🎯 **Target:** {target_lang_name}\n"
             f"━━━━━━━━━━━━━━━━\n"
             f"{translated_text}"
         )
@@ -299,45 +277,50 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         ]
         await update.inline_query.answer(results, cache_time=60)
 
-
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors."""
     logger.error(f"Update {update} caused error: {context.error}")
 
-
-async def post_init(application: Application) -> None:
+async def post_init(application: Application):
     """Called after bot initialization."""
-    logger.info("Bot started successfully! 🤖")
-    logger.info(f"Bot Username: @languagetranslator29bot")
-    logger.info(f"Supported Languages: {len(LANGUAGES)}")
+    logger.info("=" * 50)
+    logger.info("🤖 Language Translator Bot Started Successfully!")
+    logger.info(f"📱 Bot Username: @languagetranslator29bot")
+    logger.info(f"🌐 Supported Languages: {len(LANGUAGES)}")
+    logger.info("=" * 50)
 
-
-def main() -> None:
+def main():
     """Main entry point."""
     try:
+        # Create application
         application = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
         
+        # Add command handlers
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("help", help_command))
         application.add_handler(CommandHandler("languages", languages_command))
         application.add_handler(CommandHandler("about", about_command))
         application.add_handler(CommandHandler("translate", translate_command))
         
+        # Add message handler
         application.add_handler(MessageHandler(
             filters.TEXT & ~filters.COMMAND,
             handle_message
         ))
         
+        # Add inline query handler
         application.add_handler(InlineQueryHandler(inline_query))
+        
+        # Add error handler
         application.add_error_handler(error_handler)
         
-        logger.info("Starting bot...")
+        # Start bot
+        logger.info("Starting bot polling...")
         application.run_polling(allowed_updates=Update.ALL_TYPES)
         
     except Exception as e:
         logger.error(f"Failed to start bot: {e}")
         raise
-
 
 if __name__ == "__main__":
     main()
